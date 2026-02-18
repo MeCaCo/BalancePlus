@@ -5,13 +5,14 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.models.user import User
-from app.schemas.user import UserCreate, User
+from app.schemas.user import UserCreate
+from app.schemas.user import User as UserOut
 from app.core.config import settings
 
 router = APIRouter()
 
 
-@router.post("/register", response_model=User)
+@router.post("/register", response_model=UserOut)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     # Проверяем, есть ли пользователь с таким email или username
     existing_user = db.query(User).filter(
