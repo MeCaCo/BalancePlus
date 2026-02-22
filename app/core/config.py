@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     # Database - PostgreSQL
     POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "Assdddddfff12"
+    POSTGRES_PASSWORD: str
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: str = "5432"
     POSTGRES_DB: str = "balance_plus"
@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
     # JWT
-    SECRET_KEY: str = "my-super-secret-key-12345"
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
