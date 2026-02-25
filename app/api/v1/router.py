@@ -1,11 +1,14 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, categories, transactions, analytics, goals, import_export
+from app.api.v1.endpoints import auth, categories, transactions, analytics, goals, import_export, auth_refactored, categories_refactored, transactions_refactored
 
 router = APIRouter()
 
-router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-router.include_router(categories.router, prefix="/categories", tags=["Categories"])
-router.include_router(transactions.router, prefix="/transactions", tags=["Transactions"])
+# router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+# router.include_router(categories.router, prefix="/categories", tags=["Categories"])
+# router.include_router(transactions.router, prefix="/transactions", tags=["Transactions"])
 router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 router.include_router(goals.router, prefix="/goals", tags=["Goals"])
 router.include_router(import_export.router, prefix="/import-export", tags=["Import/Export"])
+router.include_router(auth_refactored.router, prefix="/auth", tags=["auth (refactored)"])
+router.include_router(categories_refactored.router, prefix="/categories", tags=["Categories"])
+router.include_router(transactions_refactored.router, prefix="/transactions", tags=["Transactions"])

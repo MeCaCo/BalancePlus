@@ -6,10 +6,16 @@ from sqlalchemy import pool
 from alembic import context
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+import os
+
+# Загружаем переменные из .env
+load_dotenv()
+
 sys.path.append(str(Path(__file__).parent.parent))
 
 from app.core.database import Base
-from app.models import User, Category
+from app.models import User, Category, Transaction, Goal
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -25,6 +31,7 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
+
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -45,6 +52,9 @@ def run_migrations_offline() -> None:
 
     """
     url = config.get_main_option("sqlalchemy.url")
+    # Подставляем пароль из переменной окружения для offline режима
+    url = url.replace("${POSTGRES_PASSWORD}", os.getenv("POSTGRES_PASSWORD", ""))
+
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -63,8 +73,14 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Получаем конфигурацию и подставляем пароль
+    configuration = config.get_section(config.config_ini_section, {})
+    configuration["sqlalchemy.url"] = configuration["sqlalchemy.url"].replace(
+        "${POSTGRES_PASSWORD}", os.getenv("POSTGRES_PASSWORD", "")
+    )
+
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

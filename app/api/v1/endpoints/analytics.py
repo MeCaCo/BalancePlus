@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
-from typing import List, Dict
-from datetime import datetime, timedelta
+from sqlalchemy import func
+from typing import Optional
+from datetime import datetime, timezone
 
 from app.core.database import get_db
 from app.models.transaction import Transaction
 from app.models.category import Category
-from app.api.deps import get_current_active_user
+from app.core.dependencies import get_current_user
 from app.models.user import User
 
 router = APIRouter()
@@ -16,34 +16,43 @@ router = APIRouter()
 @router.get("/balance")
 def get_balance(
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_active_user)
+        current_user: User = Depends(get_current_user)
 ):
-    """Получить текущий баланс (доходы - расходы)"""
-    transactions = db.query(Transaction).filter(
-        Transaction.user_id == current_user.id
-    ).all()
+    """Получить текущий баланс (доходы - расходы) — считает в БД"""
+    # Доходы
+    income = db.query(func.coalesce(func.sum(Transaction.amount), 0)) \
+        .join(Category, Transaction.category_id == Category.id) \
+        .filter(
+        Transaction.user_id == current_user.id,
+        Category.type == 'income'
+    ).scalar()
 
-    total_income = sum(t.amount for t in transactions if t.category.type == "income")
-    total_expense = sum(t.amount for t in transactions if t.category.type == "expense")
+    # Расходы
+    expense = db.query(func.coalesce(func.sum(Transaction.amount), 0)) \
+        .join(Category, Transaction.category_id == Category.id) \
+        .filter(
+        Transaction.user_id == current_user.id,
+        Category.type == 'expense'
+    ).scalar()
 
     return {
-        "total_income": total_income,
-        "total_expense": total_expense,
-        "balance": total_income - total_expense
+        "total_income": float(income),
+        "total_expense": float(expense),
+        "balance": float(income - expense)
     }
 
 
 @router.get("/by-category")
 def get_expenses_by_category(
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
-        start_date: datetime = None,
-        end_date: datetime = None
+        current_user: User = Depends(get_current_user),
+        start_date: Optional[datetime] = Query(None),
+        end_date: Optional[datetime] = Query(None)
 ):
-    """Получить расходы по категориям за период"""
+    """Получить расходы по категориям за период — GROUP BY в БД"""
     query = db.query(
         Category.name,
-        func.sum(Transaction.amount).label('total')
+        func.coalesce(func.sum(Transaction.amount), 0).label('total')
     ).join(
         Transaction, Transaction.category_id == Category.id
     ).filter(
@@ -66,34 +75,55 @@ def get_monthly_stats(
         year: int,
         month: int,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_active_user)
+        current_user: User = Depends(get_current_user)
 ):
-    """Получить статистику за конкретный месяц"""
-    start_date = datetime(year, month, 1)
+    """Получить статистику за конкретный месяц — агрегация в БД"""
+    # Формируем границы месяца
+    start_date = datetime(year, month, 1, tzinfo=timezone.utc)
     if month == 12:
-        end_date = datetime(year + 1, 1, 1)
+        end_date = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
     else:
-        end_date = datetime(year, month + 1, 1)
+        end_date = datetime(year, month + 1, 1, tzinfo=timezone.utc)
 
-    transactions = db.query(Transaction).filter(
+    # Доходы за месяц
+    income = db.query(func.coalesce(func.sum(Transaction.amount), 0)) \
+        .join(Category, Transaction.category_id == Category.id) \
+        .filter(
         Transaction.user_id == current_user.id,
+        Category.type == 'income',
         Transaction.date >= start_date,
         Transaction.date < end_date
-    ).all()
+    ).scalar()
 
-    income = sum(t.amount for t in transactions if t.category.type == "income")
-    expense = sum(t.amount for t in transactions if t.category.type == "expense")
+    # Расходы за месяц
+    expense = db.query(func.coalesce(func.sum(Transaction.amount), 0)) \
+        .join(Category, Transaction.category_id == Category.id) \
+        .filter(
+        Transaction.user_id == current_user.id,
+        Category.type == 'expense',
+        Transaction.date >= start_date,
+        Transaction.date < end_date
+    ).scalar()
 
-    # Расходы по категориям
-    by_category = {}
-    for t in transactions:
-        if t.category.type == "expense":
-            by_category[t.category.name] = by_category.get(t.category.name, 0) + t.amount
+    # Расходы по категориям (группировка в БД)
+    by_category_raw = db.query(
+        Category.name,
+        func.coalesce(func.sum(Transaction.amount), 0).label('total')
+    ).join(
+        Transaction, Transaction.category_id == Category.id
+    ).filter(
+        Transaction.user_id == current_user.id,
+        Category.type == 'expense',
+        Transaction.date >= start_date,
+        Transaction.date < end_date
+    ).group_by(Category.name).all()
+
+    by_category = {r[0]: float(r[1]) for r in by_category_raw}
 
     return {
         "month": f"{year}-{month:02d}",
-        "income": income,
-        "expense": expense,
-        "balance": income - expense,
+        "income": float(income),
+        "expense": float(expense),
+        "balance": float(income - expense),
         "by_category": by_category
     }
