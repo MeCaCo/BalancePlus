@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 import csv
 import io
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user  # или get_current_active_user
+from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.models.transaction import Transaction
 from app.models.category import Category
@@ -103,10 +103,10 @@ def import_csv(
                     if date_str:
                         date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
                     else:
-                        date = datetime.utcnow()
+                        date = datetime.now(timezone.utc)
                 except ValueError:
                     errors.append(f"Row {i}: invalid date format, using current date")
-                    date = datetime.utcnow()
+                    date = datetime.now(timezone.utc)
 
                 # Определяем категорию
                 category_id = None
